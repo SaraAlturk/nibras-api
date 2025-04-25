@@ -10,22 +10,21 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-# ⚡ Load model from local /model folder
+# ✅ Load from local directory (not Hugging Face Hub)
 MODEL_PATH = "model"
 
 try:
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
-    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH)
+    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
+    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 except Exception as e:
     raise RuntimeError(f"Failed to load model: {e}")
 
-# Correct label map
-label_map = {int(k): v for k, v in model.config.id2label.items()}
+label_map = model.config.id2label
 
-@router.post("/", summary="Assess stuttering in uploaded audio")
+@router.post("/")
 async def assess_stuttering(file: UploadFile = File(...)):
     if not file or "." not in file.filename:
         raise HTTPException(400, "Invalid or missing file.")
@@ -66,7 +65,7 @@ async def assess_stuttering(file: UploadFile = File(...)):
         with torch.no_grad():
             logits = model(**inputs).logits
         pid = torch.argmax(logits, dim=-1)[0].item()
-        pred_labels.append(label_map.get(pid, "none"))
+        pred_labels.append(label_map[str(pid)])
 
     # Count events
     num_events = 0
