@@ -10,12 +10,11 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-# ✅ Load from local directory (not Hugging Face Hub)
 MODEL_PATH = "app/model"
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
-    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True, trust_remote_code=True)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -50,7 +49,6 @@ async def assess_stuttering(file: UploadFile = File(...)):
     if audio_np.size == 0:
         raise HTTPException(400, "Empty audio.")
 
-    # Sliding window inference
     WIN, HOP, SR = 0.2, 0.1, 16000
     wlen = int(WIN * SR)
     hop  = int(HOP * SR)
@@ -67,7 +65,6 @@ async def assess_stuttering(file: UploadFile = File(...)):
         pid = torch.argmax(logits, dim=-1)[0].item()
         pred_labels.append(label_map[str(pid)])
 
-    # Count events
     num_events = 0
     stutter_frames = 0
     prev = "none"
@@ -82,7 +79,6 @@ async def assess_stuttering(file: UploadFile = File(...)):
     stuttering_time = stutter_frames * frame_duration
     total_duration = len(audio_np) / SR
 
-    # Word segmentation
     nonsilent_ms = detect_nonsilent(
         seg,
         min_silence_len=100,
