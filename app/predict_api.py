@@ -10,7 +10,7 @@ router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
 # ⚡ Load model from local model/ folder
-MODEL_PATH = "model"
+MODEL_PATH = "app/model"
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
