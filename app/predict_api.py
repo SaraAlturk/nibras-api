@@ -9,18 +9,20 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-MODEL_NAME = "altxsara/nibras1.0"
+# ⚡ Load model from local model/ folder
+MODEL_PATH = "./model"
 
 try:
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_NAME)
-    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_NAME)
+    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
+    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 except Exception as e:
     raise RuntimeError(f"Model load failed: {e}")
 
-ID2LABEL = model.config.id2label
+# Important: ID2LABEL keys must be integers (not strings)
+ID2LABEL = {int(k): v for k, v in model.config.id2label.items()}
 
 @router.post("/", summary="Predict stutter type from uploaded audio")
 async def predict_stutter_type(audio_file: UploadFile = File(...)):
@@ -44,7 +46,7 @@ async def predict_stutter_type(audio_file: UploadFile = File(...)):
             logits = model(**inputs).logits
         probs = torch.softmax(logits, dim=-1).squeeze().cpu().tolist()
         pred_idx = int(torch.argmax(logits, dim=-1).cpu().item())
-        pred_label = ID2LABEL.get(str(pred_idx), "Unknown")
+        pred_label = ID2LABEL.get(pred_idx, "Unknown")
     except Exception as e:
         logging.error(f"Inference failed: {e}")
         raise HTTPException(status_code=500, detail="Model inference failed")
@@ -53,5 +55,5 @@ async def predict_stutter_type(audio_file: UploadFile = File(...)):
         "prediction": pred_label,
         "prediction_index": pred_idx,
         "confidence": round(probs[pred_idx], 4),
-        "all_confidences": {ID2LABEL[str(i)]: round(probs[i], 4) for i in range(len(probs))}
+        "all_confidences": {ID2LABEL[i]: round(probs[i], 4) for i in range(len(probs))}
     })
