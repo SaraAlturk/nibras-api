@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+transformers
+torch
+torchaudio
+safetensors
+pydub
+python-multipart
+requests
