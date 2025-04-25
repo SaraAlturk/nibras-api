@@ -13,10 +13,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(predict_router, prefix="/predict", tags=["predict"])
-app.include_router(assess_router, prefix="/assess", tags=["assess"])
+# Mount endpoints
+app.include_router(predict_router, prefix="/predict", tags=["Prediction"])
+app.include_router(assess_router, prefix="/assess", tags=["Assessment"])
 
-@app.get("/")
-def root():
-    return {"message": "Nibras API is running ✅"}
+@app.get("/", tags=["Root"])
+def read_root():
+    return {"message": "Welcome to the Nibras API. Use /predict or /assess."}
+
