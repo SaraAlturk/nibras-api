@@ -9,19 +9,17 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-# ⚡ Load model from local model/ folder
 MODEL_PATH = "app/model"
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
-    model     = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True, trust_remote_code=True)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 except Exception as e:
     raise RuntimeError(f"Model load failed: {e}")
 
-# ✅ Ensure ID2LABEL uses integer keys
 ID2LABEL = {int(k): v for k, v in model.config.id2label.items()}
 
 @router.post("/", summary="Predict stutter type from uploaded audio")
@@ -31,9 +29,9 @@ async def predict_stutter_type(audio_file: UploadFile = File(...)):
 
     try:
         data = await audio_file.read()
-        ext  = audio_file.filename.rsplit(".", 1)[-1].lower()
-        seg  = AudioSegment.from_file(io.BytesIO(data), format=ext)
-        seg  = seg.set_frame_rate(16000).set_channels(1)
+        ext = audio_file.filename.rsplit(".", 1)[-1].lower()
+        seg = AudioSegment.from_file(io.BytesIO(data), format=ext)
+        seg = seg.set_frame_rate(16000).set_channels(1)
         samples = np.array(seg.get_array_of_samples())
         audio_np = samples.astype(np.float32) / 32768.0
     except Exception as e:
