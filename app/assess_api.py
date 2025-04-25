@@ -11,7 +11,7 @@ router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
 # ✅ Load from local directory (not Hugging Face Hub)
-MODEL_PATH = "model"
+MODEL_PATH = "app/model"
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
