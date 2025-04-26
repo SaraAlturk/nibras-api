@@ -9,7 +9,7 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-MODEL_PATH = "app/model"
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model")
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
@@ -18,7 +18,7 @@ try:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 except Exception as e:
-    raise RuntimeError(f"Model load failed: {e}")
+    raise RuntimeError(f"Failed to load model: {e}")
 
 ID2LABEL = {int(k): v for k, v in model.config.id2label.items()}
 
