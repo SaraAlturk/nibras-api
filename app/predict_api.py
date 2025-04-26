@@ -2,6 +2,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import logging, io
 import numpy as np
+import os
 from pydub import AudioSegment
 import torch
 from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
