@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 MODEL_PATH = "app/model"
 
 try:
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
-    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True, trust_remote_code=True)
+    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, trust_remote_code=True)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -33,9 +33,20 @@ async def predict_stutter_type(audio_file: UploadFile = File(...)):
         seg = AudioSegment.from_file(io.BytesIO(data), format=ext)
         seg = seg.set_frame_rate(16000).set_channels(1)
         samples = np.array(seg.get_array_of_samples())
-        audio_np = samples.astype(np.float32) / 32768.0
+        sw = seg.sample_width
+        if sw == 2:
+            audio_np = samples.astype(np.float32) / 32768.0
+        elif sw == 4:
+            audio_np = samples.astype(np.float32) / (2**31)
+        else:
+            audio_np = samples.astype(np.float32)
+            if sw == 1:
+                audio_np = (audio_np - 128) / 128.0
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Audio loading failed: {e}")
+
+    if audio_np.size == 0:
+        raise HTTPException(status_code=400, detail="Empty audio.")
 
     try:
         inputs = processor(audio_np, sampling_rate=16000, return_tensors="pt")
