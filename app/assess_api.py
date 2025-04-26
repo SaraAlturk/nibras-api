@@ -10,7 +10,8 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-MODEL_PATH = "app/model"  # ✅ Make sure this matches your repo structure!
+# 🛠 Correct model path
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model")
 
 try:
     processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
