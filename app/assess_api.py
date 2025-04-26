@@ -10,11 +10,11 @@ from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 router = APIRouter()
 logging.basicConfig(level=logging.INFO)
 
-MODEL_PATH = "app/model"
+MODEL_PATH = "app/model"  # ✅ Make sure this matches your repo structure!
 
 try:
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH, local_files_only=True)
-    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, local_files_only=True, trust_remote_code=True)
+    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, trust_remote_code=True)
     model.eval()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
