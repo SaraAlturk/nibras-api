@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 import io, logging
+import os
 import numpy as np
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
