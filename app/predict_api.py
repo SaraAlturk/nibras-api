@@ -1,69 +1,102 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
-import logging, io
-import numpy as np
-import os
-from pydub import AudioSegment
+from fastapi import APIRouter, HTTPException, File, UploadFile
 import torch
+import torchaudio
+import os
+import logging
+import ffmpeg
 from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
 
 router = APIRouter()
-logging.basicConfig(level=logging.INFO)
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "model")
+logging.basicConfig(level=logging.DEBUG)
 
+# Log torchaudio version and available backends
+logging.debug(f"torchaudio version: {torchaudio.__version__}")
+logging.debug(f"Available backends: {torchaudio.list_audio_backends()}")
+
+# Try to set the audio backend to ffmpeg, fall back to soundfile
 try:
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_PATH)
-    model = Wav2Vec2ForSequenceClassification.from_pretrained(MODEL_PATH, trust_remote_code=True)
-    model.eval()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-except Exception as e:
-    raise RuntimeError(f"Failed to load model: {e}")
+    torchaudio.set_audio_backend("ffmpeg")
+except RuntimeError:
+    logging.warning("FFmpeg backend not available, falling back to soundfile")
+    torchaudio.set_audio_backend("soundfile")
 
-ID2LABEL = {int(k): v for k, v in model.config.id2label.items()}
+# Model Path
+model_path = "/Users/mrmacbook/projects/nibras_api/model"
 
-@router.post("/", summary="Predict stutter type from uploaded audio")
-async def predict_stutter_type(audio_file: UploadFile = File(...)):
-    if not audio_file.content_type.startswith("audio/"):
-        raise HTTPException(status_code=415, detail="Unsupported file type.")
+# Load processor and model
+processor = Wav2Vec2Processor.from_pretrained(model_path)
+model = Wav2Vec2ForSequenceClassification.from_pretrained(model_path)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
 
+# Define label mapping
+ID2LABEL = {
+    0: "W",
+    1: "S",
+    2: "PH",
+    3: "PR",
+    4: "none"
+}
+
+# Audio Preprocessing
+def preprocess_audio(audio_path: str):
+    waveform, sr = torchaudio.load(audio_path)
+    target_sampling_rate = processor.feature_extractor.sampling_rate
+
+    if sr != target_sampling_rate:
+        waveform = torchaudio.transforms.Resample(orig_freq=sr, new_freq=target_sampling_rate)(waveform)
+    
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0)
+    
+    waveform = waveform.unsqueeze(0).squeeze()
+    logging.debug(f"Shape of preprocessed audio: {waveform.shape}")
+
+    return waveform
+
+# Convert file to WAV format
+def convert_to_wav(input_path: str, output_path: str):
     try:
-        data = await audio_file.read()
-        ext = audio_file.filename.rsplit(".", 1)[-1].lower()
-        seg = AudioSegment.from_file(io.BytesIO(data), format=ext)
-        seg = seg.set_frame_rate(16000).set_channels(1)
-        samples = np.array(seg.get_array_of_samples())
-        sw = seg.sample_width
-        if sw == 2:
-            audio_np = samples.astype(np.float32) / 32768.0
-        elif sw == 4:
-            audio_np = samples.astype(np.float32) / (2**31)
-        else:
-            audio_np = samples.astype(np.float32)
-            if sw == 1:
-                audio_np = (audio_np - 128) / 128.0
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Audio loading failed: {e}")
+        ffmpeg.input(input_path).output(output_path, format='wav', acodec='pcm_s16le', ar=16000).run(overwrite_output=True)
+        logging.debug(f"Converted {input_path} to {output_path}")
+    except ffmpeg.Error as e:
+        logging.error(f"FFmpeg error: {e.stderr.decode()}")
+        raise
 
-    if audio_np.size == 0:
-        raise HTTPException(status_code=400, detail="Empty audio.")
-
+# Predict Endpoint
+@router.post("/predict/")
+async def predict(file: UploadFile = File(...)):
     try:
-        inputs = processor(audio_np, sampling_rate=16000, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        temp_file_path = f"/tmp/{file.filename}"
+        converted_file_path = f"/tmp/converted_{file.filename}.wav"
+
+        # Save the uploaded file
+        with open(temp_file_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            logging.debug(f"File saved at {temp_file_path}, size: {len(content)} bytes")
+
+        # Convert the file to WAV format
+        convert_to_wav(temp_file_path, converted_file_path)
+
+        # Preprocess the converted file
+        waveform = preprocess_audio(converted_file_path)
+        inputs = processor(waveform, return_tensors="pt", sampling_rate=processor.feature_extractor.sampling_rate)
+        input_values = inputs["input_values"].to(device)
+
         with torch.no_grad():
-            logits = model(**inputs).logits
-        probs = torch.softmax(logits, dim=-1).squeeze().cpu().tolist()
-        pred_idx = int(torch.argmax(logits, dim=-1).cpu().item())
-        pred_label = ID2LABEL.get(pred_idx, "Unknown")
-    except Exception as e:
-        logging.error(f"Inference failed: {e}")
-        raise HTTPException(status_code=500, detail="Model inference failed")
+            logits = model(input_values).logits
 
-    return JSONResponse({
-        "prediction": pred_label,
-        "prediction_index": pred_idx,
-        "confidence": round(probs[pred_idx], 4),
-        "all_confidences": {ID2LABEL[i]: round(probs[i], 4) for i in range(len(probs))}
-    })
+        predicted_id = torch.argmax(logits, dim=-1).item()
+        predicted_label = ID2LABEL[predicted_id]
+
+        # Clean up temporary files
+        os.remove(temp_file_path)
+        os.remove(converted_file_path)
+
+        return {"prediction": predicted_label}
+
+    except Exception as e:
+        logging.exception("Prediction error")
+        raise HTTPException(status_code=500, detail=str(e))
