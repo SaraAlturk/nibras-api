@@ -1,13 +1,8 @@
 fastapi
 uvicorn
-transformers
 torch
 torchaudio
-safetensors
-pydub
+transformers
 python-multipart
-requests
-numpy
-
-
-
+soundfile
+ffmpeg-python
