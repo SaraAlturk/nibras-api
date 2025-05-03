@@ -6,3 +6,4 @@ transformers
 python-multipart
 soundfile
 ffmpeg-python
+requests
