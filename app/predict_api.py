@@ -55,7 +55,7 @@ if not os.path.exists(os.path.join(MODEL_DIR, "model.safetensors")):
     os.remove(zip_path)
 
 # Model Path
-model_path = MODEL_DIR
+model_path = f"{MODEL_DIR}/model" 
 
 # Load processor and model
 processor = Wav2Vec2Processor.from_pretrained(model_path)
