@@ -66,7 +66,7 @@ ctc_proc     = Wav2Vec2Processor.from_pretrained(CTC_MODEL_ID)
 ctc_model    = Wav2Vec2ForCTC.from_pretrained(CTC_MODEL_ID).to(DEVICE)
 
 # Load Classifier Model
-CLF_MODEL_DIR = MODEL_DIR  # Use the same directory as the downloaded model
+CLF_MODEL_DIR = f"{MODEL_DIR}/model"  # Use the same directory as the downloaded model
 clf_proc      = Wav2Vec2Processor.from_pretrained(CLF_MODEL_DIR)
 clf_model     = Wav2Vec2ForSequenceClassification.from_pretrained(CLF_MODEL_DIR).to(DEVICE)
 
