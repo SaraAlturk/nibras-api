@@ -5,6 +5,33 @@ import os
 import logging
 import ffmpeg
 from transformers import Wav2Vec2Processor, Wav2Vec2ForSequenceClassification
+import os
+import requests
+import zipfile
+
+# Model directory
+MODEL_DIR = "/app/models"  # Render's filesystem path
+MODEL_URL = "https://www.dropbox.com/scl/fi/rcszw60dqjp53ngeo0h8h/model.zip?rlkey=hrce0kty2mfcvjvfuun906aro&st=bdnj0wio&dl=0"  # Replace with your model.zip URL
+
+# Ensure model directory exists
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Download and extract the model if it doesn't exist
+if not os.path.exists(os.path.join(MODEL_DIR, "model.safetensors")):
+    print(f"Downloading model from {MODEL_URL}...")
+    zip_path = "/app/model.zip"
+    response = requests.get(MODEL_URL)
+    with open(zip_path, "wb") as f:
+        f.write(response.content)
+    print("Model zip downloaded successfully.")
+
+    # Extract the zip file
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall("/app")
+    print("Model extracted successfully.")
+
+    # Clean up the zip file
+    os.remove(zip_path)
 
 router = APIRouter()
 
